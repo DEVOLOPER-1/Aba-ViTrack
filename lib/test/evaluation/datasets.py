@@ -30,6 +30,8 @@ dataset_dict = dict(
     tnl2k=DatasetInfo(module=pt % "tnl2k", class_name="TNL2kDataset", kwargs=dict()),
     lasot_extension_subset=DatasetInfo(module=pt % "lasotextensionsubset", class_name="LaSOTExtensionSubsetDataset",
                                        kwargs=dict()),
+
+    mtc_aic4=DatasetInfo(module=pt % "mtcaic4", class_name="MTCAIC4Dataset", kwargs=dict()),
 )
 
 

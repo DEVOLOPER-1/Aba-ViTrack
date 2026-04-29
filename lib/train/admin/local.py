@@ -1,7 +1,7 @@
 class EnvironmentSettings:
     def __init__(self):
-        self.workspace_dir = '{{PROJECT PATH}}'    # Base directory for saving network checkpoints.
-        self.tensorboard_dir = '{{PROJECT PATH}}/tensorboard'    # Directory for tensorboard files.
+        self.workspace_dir = '/home/youssef_mohammad/projects/Aba-ViTrack'    # Base directory for saving network checkpoints.
+        self.tensorboard_dir = '/home/youssef_mohammad/projects/Aba-ViTrack/tensorboard'    # Directory for tensorboard files.
         self.pretrained_networks = '{{PROJECT PATH}}/pretrained_networks'
         self.lasot_dir = '{{PROJECT PATH}}/data/LaSOT/zip'
         self.got10k_dir = '{{PROJECT PATH}}/data/GOT-10k/train'
@@ -22,3 +22,4 @@ class EnvironmentSettings:
         self.msra10k_dir = ''
         self.davis_dir = ''
         self.youtubevos_dir = ''
+        self.mtc_aic4_dir = '/mnt/contest_release_data'
