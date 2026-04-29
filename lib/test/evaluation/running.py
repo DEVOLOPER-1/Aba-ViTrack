@@ -12,20 +12,24 @@ import torch
 
 
 def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
-    """Saves the output of the tracker."""
+    """Saves the output of the tracker.
 
-    #=====+++++
-    if not os.path.exists(os.path.join(tracker.results_dir, seq.dataset)):
-        print("create tracking result dir:", os.path.join(tracker.results_dir, seq.dataset))
-        os.makedirs(os.path.join(tracker.results_dir, seq.dataset))
-    if seq.dataset in ['trackingnet', 'got10k']:
-        if not os.path.exists(os.path.join(tracker.results_dir, seq.dataset)):
-            os.makedirs(os.path.join(tracker.results_dir, seq.dataset))
-    '''2021.1.5 create new folder for these two datasets'''
-    if seq.dataset in ['trackingnet', 'got10k']:
-        base_results_path = os.path.join(tracker.results_dir, seq.dataset, seq.name)
-    else:
-        base_results_path = os.path.join(tracker.results_dir, seq.dataset,seq.name)
+    FIX vs original
+    ---------------
+    The original code only created {results_dir}/{seq.dataset}/ but the
+    actual bbox file lives at {results_dir}/{seq.dataset}/{seq.name}.txt.
+    When seq.name contained a '/' this silently failed because the nested
+    sub-directory was never created.
+
+    Now we always os.makedirs with exist_ok=True all the way down to the
+    parent directory of the file we are about to write.
+    """
+
+    base_results_path = os.path.join(tracker.results_dir, seq.dataset, seq.name)
+
+    # Ensure the full directory tree exists (handles any remaining slashes in
+    # seq.name and the normal flat case alike).
+    os.makedirs(os.path.dirname(os.path.abspath(base_results_path)), exist_ok=True)
 
     def save_bb(file, data):
         tracked_bb = np.array(data).astype(int)
@@ -57,7 +61,6 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
         if key == 'target_bbox':
             if isinstance(data[0], (dict, OrderedDict)):
                 data_dict = _convert_dict(data)
-
                 for obj_id, d in data_dict.items():
                     bbox_file = '{}_{}.txt'.format(base_results_path, obj_id)
                     save_bb(bbox_file, d)
@@ -69,7 +72,6 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
         if key == 'all_boxes':
             if isinstance(data[0], (dict, OrderedDict)):
                 data_dict = _convert_dict(data)
-
                 for obj_id, d in data_dict.items():
                     bbox_file = '{}_{}_all_boxes.txt'.format(base_results_path, obj_id)
                     save_bb(bbox_file, d)
@@ -81,7 +83,6 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
         if key == 'all_scores':
             if isinstance(data[0], (dict, OrderedDict)):
                 data_dict = _convert_dict(data)
-
                 for obj_id, d in data_dict.items():
                     bbox_file = '{}_{}_all_scores.txt'.format(base_results_path, obj_id)
                     save_score(bbox_file, d)
@@ -94,7 +95,6 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
         elif key == 'time':
             if isinstance(data[0], dict):
                 data_dict = _convert_dict(data)
-
                 for obj_id, d in data_dict.items():
                     timings_file = '{}_{}_time.txt'.format(base_results_path, obj_id)
                     save_time(timings_file, d)
@@ -103,7 +103,7 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
                 save_time(timings_file, data)
 
 
-def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8,test_epoch = 300):
+def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8, test_epoch=300):
     """Runs a tracker on a sequence."""
     '''2021.1.2 Add multiple gpu support'''
     try:
@@ -116,11 +116,7 @@ def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8,test_ep
 
     def _results_exist():
         if seq.object_ids is None:
-            if seq.dataset in ['trackingnet', 'got10k']:
-                base_results_path = os.path.join(tracker.results_dir, seq.dataset, seq.name)
-                bbox_file = '{}.txt'.format(base_results_path)
-            else:
-                bbox_file = '{}/{}/{}.txt'.format(tracker.results_dir, seq.dataset,seq.name)
+            bbox_file = '{}/{}/{}.txt'.format(tracker.results_dir, seq.dataset, seq.name)
             return os.path.isfile(bbox_file)
         else:
             bbox_files = ['{}/{}_{}.txt'.format(tracker.results_dir, seq.name, obj_id) for obj_id in seq.object_ids]
@@ -134,10 +130,10 @@ def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8,test_ep
     print('Tracker: {} {} {} ,  Sequence: {}'.format(tracker.name, tracker.parameter_name, tracker.run_id, seq.name))
 
     if debug:
-        output = tracker.run_sequence(seq, debug=debug,test_epoch=test_epoch)
+        output = tracker.run_sequence(seq, debug=debug, test_epoch=test_epoch)
     else:
         try:
-            output = tracker.run_sequence(seq, debug=debug,test_epoch=test_epoch)
+            output = tracker.run_sequence(seq, debug=debug, test_epoch=test_epoch)
         except Exception as e:
             print(e)
             return
@@ -180,7 +176,7 @@ def run_dataset(dataset, trackers, debug=False, threads=0, num_gpus=8, test_epoc
     if mode == 'sequential':
         for seq in dataset:
             for tracker_info in trackers:
-                run_sequence(seq, tracker_info, debug=debug,test_epoch=test_epoch)
+                run_sequence(seq, tracker_info, debug=debug, test_epoch=test_epoch)
     elif mode == 'parallel':
         param_list = [(seq, tracker_info, debug, num_gpus, test_epoch) for seq, tracker_info in product(dataset, trackers)]
         with multiprocessing.Pool(processes=threads) as pool:
