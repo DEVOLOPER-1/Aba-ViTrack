@@ -45,7 +45,7 @@ DATA:
     - 1
     SAMPLE_PER_EPOCH: 10000
 MODEL:
-  PRETRAIN_FILE: "mae_pretrain_vit_base.pth"
+  PRETRAIN_FILE: "/home/youssef_mohammad/projects/Aba-ViTrack/output/checkpoints/train/abavitrack/abavit_patch16_224/AbaViTrack_ep0300.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   BACKBONE:

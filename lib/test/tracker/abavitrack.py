@@ -20,7 +20,20 @@ class AbaViTrack(BaseTracker):
     def __init__(self, params, dataset_name):
         super(AbaViTrack, self).__init__(params)
         network = build_abavitrack(params.cfg, training=False)
-        network.load_state_dict(torch.load(self.params.checkpoint, map_location='cpu')['net'], strict=False)
+        print('net')
+
+        # Safely load the checkpoint
+        ckpt = torch.load(self.params.checkpoint, map_location='cpu')
+
+        # Check if it has the ['net'] wrapper, otherwise assume it is a raw state_dict
+        if 'net' in ckpt:
+            state_dict = ckpt['net']
+        else:
+            state_dict = ckpt
+
+        # Load the weights safely
+        network.load_state_dict(state_dict, strict=False)
+
         self.cfg = params.cfg
         self.network = network.cuda()
         self.network.eval()
