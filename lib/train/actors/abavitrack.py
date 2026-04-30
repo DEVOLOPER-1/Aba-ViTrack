@@ -6,6 +6,7 @@ from lib.utils.merge import merge_template_search
 from ...utils.heapmap_utils import generate_heatmap
 from ...utils.ce_utils import generate_mask_cond, adjust_keep_rate
 import torch.nn.functional as F
+import torch.distributions as dist
 
 class AbaViTrackActor(BaseActor):
     """ Actor for training AbaViTrack models """
@@ -130,17 +131,42 @@ class AbaViTrackActor(BaseActor):
         rho_token[:,1:] = rho_token[:,1:]*rho_token_weight   ### our
         ponder_loss_token = torch.mean(torch.sum(rho_token,1)/(torch.sum(rho_token_weight,1)+1))  ### our
 
-
-        # Distributional prior
+        # Distributional prior (Gamma Skewed)
         distr_prior_alpha = 0.001
         kl_metric = pred_dict['kl_metric']
-        distr_target = pred_dict['distr_target']
         halting_score_layer = pred_dict['halting_score_layer']
+
         if distr_prior_alpha > 0.:
-            # KL loss
+            num_layers = len(halting_score_layer)
+            device = halting_score_layer[0].device
+
+            # Safely fetch hyperparameters from config or default to Gamma(3.0, 0.8)
+            gamma_alpha = getattr(self.cfg.MODEL.BACKBONE, 'CE_GAMMA_ALPHA', 3.0) if hasattr(self.cfg, 'MODEL') and hasattr(
+                self.cfg.MODEL, 'CE') else 3.0
+            gamma_beta = getattr(self.cfg.MODEL.BACKBONE, 'CE_GAMMA_BETA', 0.8) if hasattr(self.cfg, 'MODEL') and hasattr(
+                self.cfg.MODEL, 'CE') else 0.8
+
+            # Generate discretized Gamma prior
+            gamma_dist = dist.Gamma(torch.tensor([gamma_alpha], device=device),
+                                    torch.tensor([gamma_beta], device=device))
+
+            # Evaluate PDF at discrete layer steps [1, L]
+            layers = torch.arange(1, num_layers + 1, dtype=torch.float32, device=device)
+            prior_probs = torch.exp(gamma_dist.log_prob(layers))
+
+            # Normalize and add epsilon to prevent NaN in KL Divergence
+            prior_probs = (prior_probs / prior_probs.sum()) + 1e-8
+            distr_target = prior_probs / prior_probs.sum()
+
+            # Process network halting scores
             halting_score_distr = torch.stack(halting_score_layer)
             halting_score_distr = halting_score_distr / torch.sum(halting_score_distr)
-            halting_score_distr = torch.clamp(halting_score_distr, 0.01, 0.99)
+            halting_score_distr = torch.clamp(halting_score_distr, 1e-8, 1.0)
+
+            # Ensure target matches tensor dimensionality for kl_metric
+            if distr_target.dim() == 1 and halting_score_distr.dim() > 1:
+                distr_target = distr_target.unsqueeze(1).expand_as(halting_score_distr)
+
             distr_prior_loss = kl_metric(halting_score_distr.log(), distr_target)
 
         # weighted sum
@@ -180,16 +206,36 @@ class AbaViTrackActor(BaseActor):
             rho_token[:, 1:] = rho_token[:, 1:] * rho_token_weight  ### our
             ponder_loss_token2 = torch.mean(torch.sum(rho_token, 1) / (torch.sum(rho_token_weight, 1) + 1))  ### our
 
-            # Distributional prior
+            # Distributional prior (Gamma Skewed)
             distr_prior_alpha = 0.001
             kl_metric = pred_dict2['kl_metric']
-            distr_target = pred_dict2['distr_target']
             halting_score_layer = pred_dict2['halting_score_layer']
+
             if distr_prior_alpha > 0.:
-                # KL loss
+                num_layers = len(halting_score_layer)
+                device = halting_score_layer[0].device
+
+                gamma_alpha = getattr(self.cfg.MODEL.BACKBONE, 'CE_GAMMA_ALPHA', 3.0) if hasattr(self.cfg, 'MODEL') and hasattr(
+                    self.cfg.MODEL, 'CE') else 3.0
+                gamma_beta = getattr(self.cfg.MODEL.BACKBONE, 'CE_GAMMA_BETA', 0.8) if hasattr(self.cfg, 'MODEL') and hasattr(
+                    self.cfg.MODEL, 'CE') else 0.8
+
+                gamma_dist = dist.Gamma(torch.tensor([gamma_alpha], device=device),
+                                        torch.tensor([gamma_beta], device=device))
+
+                layers = torch.arange(1, num_layers + 1, dtype=torch.float32, device=device)
+                prior_probs = torch.exp(gamma_dist.log_prob(layers))
+
+                prior_probs = (prior_probs / prior_probs.sum()) + 1e-8
+                distr_target = prior_probs / prior_probs.sum()
+
                 halting_score_distr = torch.stack(halting_score_layer)
                 halting_score_distr = halting_score_distr / torch.sum(halting_score_distr)
-                halting_score_distr = torch.clamp(halting_score_distr, 0.01, 0.99)
+                halting_score_distr = torch.clamp(halting_score_distr, 1e-8, 1.0)
+
+                if distr_target.dim() == 1 and halting_score_distr.dim() > 1:
+                    distr_target = distr_target.unsqueeze(1).expand_as(halting_score_distr)
+
                 distr_prior_loss2 = kl_metric(halting_score_distr.log(), distr_target)
 
             # ====================
