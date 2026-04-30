@@ -65,8 +65,12 @@ class MTCAIC4(BaseVideoDataset):
         seq_info = self.manifest[safe_name]
         anno_path = os.path.join(self.root, seq_info['annotation_path'])
         gt = pd.read_csv(
-            anno_path, delimiter=',', header=None,
-            dtype=np.float32, na_filter=False,
+            anno_path,
+            sep=r'[,\s]+',  # This replaces delimiter=',' and handles spaces or commas
+            header=None,
+            dtype=np.float32,
+            na_filter=False,
+            engine='python'  # Required when using regex separators
         ).values
         return torch.tensor(gt)
 
