@@ -29,8 +29,8 @@ def process_video(seq_key, seq_info, dataset_root):
 
 
 def main():
-    dataset_root = '/mnt/contest_release_data'
-    manifest_path = '/mnt/contest_release_data/metadata/contestant_manifest.json'
+    dataset_root = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw'
+    manifest_path = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw/metadata/contestant_manifest.json'
 
     with open(manifest_path, 'r') as f:
         manifest = json.load(f)
@@ -43,11 +43,11 @@ def main():
 
     # Determine the number of workers (typically the number of CPU cores)
     # You can hardcode this to a specific number (e.g., max_workers=8) if you want to limit CPU usage
-    max_workers = os.cpu_count()
+    max_workers = 10#os.cpu_count()
     print(f"Starting parallel extraction using {max_workers} workers...")
 
     # Use ProcessPoolExecutor to run tasks in parallel
-    with concurrent.futures.ProcessPoolExecutor(max_workers=16) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
         # Submit all tasks to the executor
         futures = [executor.submit(process_video, *task) for task in tasks]
 

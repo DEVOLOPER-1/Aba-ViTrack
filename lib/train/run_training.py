@@ -95,6 +95,7 @@ def main():
     parser.add_argument('--csl', type=int, choices=[0, 1], default=0)  # whether to use CSL
     parser.add_argument('--script_teacher', type=str, help='teacher script name')
     parser.add_argument('--config_teacher', type=str, help='teacher yaml configure file name')
+    parser.add_argument('--distill', type=int, default=0, help='Ignored distillation flag')
 
     args = parser.parse_args()
 

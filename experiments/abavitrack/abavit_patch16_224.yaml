@@ -28,8 +28,9 @@ DATA:
 
   TRAIN:
     DATASETS_NAME:
+    - MTC_AIC4
 #    - LASOT
-    - GOT10K_vottrain
+#    - GOT10K_vottrain
 #    - COCO17
 #    - TRACKINGNET
     DATASETS_RATIO:
@@ -40,12 +41,13 @@ DATA:
     SAMPLE_PER_EPOCH: 60
   VAL:
     DATASETS_NAME:
-    - GOT10K_votval
+#    - GOT10K_votval
+    - MTC_AIC4
     DATASETS_RATIO:
     - 1
     SAMPLE_PER_EPOCH: 10000
 MODEL:
-  PRETRAIN_FILE: "/home/youssef_mohammad/projects/Aba-ViTrack/output/checkpoints/train/abavitrack/abavit_patch16_224/AbaViTrack_ep0300.pth.tar"
+  PRETRAIN_FILE: "./checkpoints/AbaViTrack_ep0300.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   BACKBONE:
@@ -57,13 +59,13 @@ MODEL:
 TRAIN:
   BACKBONE_MULTIPLIER: 0.1
   DROP_PATH_RATE: 0.1
-  BATCH_SIZE: 1  #32
-  EPOCH: 300
+  BATCH_SIZE: 8  #32
+  EPOCH: 10
   GIOU_WEIGHT: 2.0
   L1_WEIGHT: 5.0
   GRAD_CLIP_NORM: 0.1
-  LR: 0.0004
-  LR_DROP_EPOCH: 240
+  LR: 0.000001
+  LR_DROP_EPOCH: 8
   NUM_WORKER: 10
   OPTIMIZER: ADAMW
   PRINT_INTERVAL: 50

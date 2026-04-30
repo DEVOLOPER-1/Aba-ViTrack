@@ -20,7 +20,7 @@ class EnvSettings:
         self.trackingnet_path = ''
         self.davis_dir = ''
         self.youtubevos_dir = ''
-        self.mtc_aic4_dir = '/mnt/contest_release_data'
+        self.mtc_aic4_dir = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw'
         self.got_packed_results_path = ''
         self.got_reports_path = ''
         self.tn_packed_results_path = ''

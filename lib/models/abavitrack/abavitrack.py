@@ -135,7 +135,17 @@ def build_abavitrack(cfg, training=True):
 
     if 'AbaViTrack' in cfg.MODEL.PRETRAIN_FILE and training:
         checkpoint = torch.load(cfg.MODEL.PRETRAIN_FILE, map_location="cpu")
-        missing_keys, unexpected_keys = model.load_state_dict(checkpoint["net"], strict=False)
+        # Check common keys used for saving PyTorch state_dicts
+        if "net" in checkpoint:
+            state_dict = checkpoint["net"]
+        elif "model" in checkpoint:
+            state_dict = checkpoint["model"]
+        elif "state_dict" in checkpoint:
+            state_dict = checkpoint["state_dict"]
+        else:
+            # If no wrapper keys exist, assume the checkpoint IS the state_dict
+            state_dict = checkpoint
+        missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
         print('Load pretrained model from: ' + cfg.MODEL.PRETRAIN_FILE)
 
     return model
