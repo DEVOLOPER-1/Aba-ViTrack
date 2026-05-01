@@ -1,6 +1,8 @@
 import subprocess
 import os
 
+num_gpus = os.environ.get("NUM_GPUS", "0")
+
 
 def ask(prompt, default=None):
     if default is not None:
@@ -41,7 +43,7 @@ else:
 config = ask("Config name", "abavit_gs_8")
 test_epoch = ask("Test epoch (checkpoint number)", "17")
 threads = ask("Inference threads", "8")
-num_gpus = ask("Number of GPUs", "0")
+# num_gpus = ask("Number of GPUs", "0")
 
 results_root = ask("Results root directory", "/app/outputs/tracking_results")
 output_csv = ask("Output CSV file", "/app/submission.csv")
