@@ -1,0 +1,43 @@
+FROM python:3.8-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
+
+# Install system libraries required by OpenCV, lmdb, etc.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git wget curl ca-certificates build-essential \
+    libglib2.0-0 libsm6 libxrender1 libxext6 libgl1-mesa-glx \
+    libjpeg-turbo8-dev libpng-dev libtiff-dev liblmdb-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CPU-only PyTorch
+RUN pip install --no-cache-dir \
+    torch==2.4.1 \
+    torchvision==0.19.1 \
+    torchaudio==2.4.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+# Copy all project files
+COPY . /app
+WORKDIR /app
+
+# Remove torch lines from requirements.txt because they’re already installed
+RUN sed -i '/^torch/d' requirements.txt && \
+    sed -i '/^torchvision/d' requirements.txt && \
+    sed -i '/^torchaudio/d' requirements.txt
+
+# Install remaining dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Environment variables (can be overridden)
+ENV DATASET_ROOT=/dataset \
+    CHECKPOINT_PATH=/app/models/abavit_gs_8.pth.tar \
+    RESULTS_ROOT=/app/outputs/tracking_results \
+    OUTPUT_CSV=/app/submission.csv
+
+RUN mkdir -p $RESULTS_ROOT
+
+# Since there's no GPU, force the tracker to use 0 GPUs
+ENV NUM_GPUS=0
+
+ENTRYPOINT ["python", "main.py"]

@@ -1,7 +1,7 @@
 import subprocess
 import os
 
-num_gpus = os.environ.get("NUM_GPUS", "0")
+num_gpus = os.environ.get("NUM_GPUS", None)
 
 
 def ask(prompt, default=None):
@@ -21,6 +21,9 @@ manifest_path = ask("Manifest JSON path", manifest_default)
 max_workers = ask("Number of CPU workers for extraction", "8")
 
 run_preprocess = ask("Run data preprocessing (y/n)", "n").lower() == "y"
+
+if num_gpus is None:
+    num_gpus = ask("Number of GPUs", "0")
 
 if run_preprocess:
     print(">>> Extracting frames...")
@@ -43,7 +46,6 @@ else:
 config = ask("Config name", "abavit_gs_8")
 test_epoch = ask("Test epoch (checkpoint number)", "17")
 threads = ask("Inference threads", "8")
-# num_gpus = ask("Number of GPUs", "0")
 
 results_root = ask("Results root directory", "/app/outputs/tracking_results")
 output_csv = ask("Output CSV file", "/app/submission.csv")
