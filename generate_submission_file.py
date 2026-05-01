@@ -4,10 +4,10 @@ import json
 import pandas as pd
 
 
-DATASET_ROOT = "/mnt/contest_release_data"
+DATASET_ROOT = "/dataset"
 MANIFEST_PATH = os.path.join(DATASET_ROOT, "metadata", "contestant_manifest.json")
 RESULTS_ROOT = (
-    "/home/youssef_mohammad/projects/Aba-ViTrack/outputs/test/tracking_results"
+    "app/outputs/tracking_results"
 )
 TRACKER_NAME = "abavitrack"
 OUTPUT_CSV = "submission.csv"

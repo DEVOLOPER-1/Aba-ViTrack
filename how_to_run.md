@@ -23,7 +23,7 @@ preprocess data? [y/n]: y
 
 ```
 Config name [abavit_gs_8]: 
-Test epoch (checkpoint number) [17]: 5
+Test epoch (checkpoint number) [17]:
 Inference threads [8]: 
 Results root directory [/app/outputs/tracking_results]: 
 Output CSV file [/app/submission.csv]: 
