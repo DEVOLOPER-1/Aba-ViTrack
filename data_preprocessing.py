@@ -1,3 +1,4 @@
+import argparse
 import os
 import json
 import cv2
@@ -5,11 +6,11 @@ import concurrent.futures
 
 
 def process_video(seq_key, seq_info, dataset_root):
-    """Function to process a single video sequence."""
     try:
-        vid_path = os.path.join(dataset_root, seq_info['video_path'])
-        # Create an 'img' folder inside the sequence folder (standard for Aba-ViTrack)
-        img_dir = os.path.join(dataset_root, seq_info['dataset'], seq_info['seq_name'], 'img')
+        vid_path = os.path.join(dataset_root, seq_info["video_path"])
+        img_dir = os.path.join(
+            dataset_root, seq_info["dataset"], seq_info["seq_name"], "img"
+        )
         os.makedirs(img_dir, exist_ok=True)
 
         cap = cv2.VideoCapture(vid_path)
@@ -18,7 +19,6 @@ def process_video(seq_key, seq_info, dataset_root):
             ret, frame = cap.read()
             if not ret:
                 break
-            # Save frames as 00000001.jpg, 00000002.jpg, etc.
             frame_name = os.path.join(img_dir, f"{(frame_idx + 1):08d}.jpg")
             cv2.imwrite(frame_name, frame)
             frame_idx += 1
@@ -29,33 +29,31 @@ def process_video(seq_key, seq_info, dataset_root):
 
 
 def main():
-    dataset_root = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw'
-    manifest_path = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw/metadata/contestant_manifest.json'
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset_root", default="contest_release")
+    parser.add_argument(
+        "--manifest_path", default="contest_release/metadata/contestant_manifest.json"
+    )
+    parser.add_argument("--max_workers", type=int, default=8)
+    args = parser.parse_args()
 
-    with open(manifest_path, 'r') as f:
+    with open(args.manifest_path, "r") as f:
         manifest = json.load(f)
 
-    # Flatten the tasks from the nested dictionary into a simple list of arguments
     tasks = []
     for split, sequences in manifest.items():
         for seq_key, seq_info in sequences.items():
-            tasks.append((seq_key, seq_info, dataset_root))
+            tasks.append((seq_key, seq_info, args.dataset_root))
 
-    # Determine the number of workers (typically the number of CPU cores)
-    # You can hardcode this to a specific number (e.g., max_workers=8) if you want to limit CPU usage
-    max_workers = 10#os.cpu_count()
+    max_workers = args.max_workers
     print(f"Starting parallel extraction using {max_workers} workers...")
 
-    # Use ProcessPoolExecutor to run tasks in parallel
-    with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
-        # Submit all tasks to the executor
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [executor.submit(process_video, *task) for task in tasks]
 
-        # Process the results as they finish
         for future in concurrent.futures.as_completed(futures):
             print(future.result())
 
 
-if __name__ == '__main__':
-    # The if __name__ == '__main__': block is REQUIRED for multiprocessing in Python
+if __name__ == "__main__":
     main()
