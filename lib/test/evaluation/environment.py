@@ -20,7 +20,7 @@ class EnvSettings:
         self.trackingnet_path = ''
         self.davis_dir = ''
         self.youtubevos_dir = ''
-        self.mtc_aic4_dir = '/media/maro/Mom0-0/Datasets/MTC-AIC/raw'
+        self.mtc_aic4_dir = ''
         self.got_packed_results_path = ''
         self.got_reports_path = ''
         self.tn_packed_results_path = ''
@@ -66,6 +66,7 @@ class EnvSettings_ITP:
         self.tc128_path = os.path.join(data_dir, 'TC128')
         self.tpl_path = ''
         self.vot_path = os.path.join(data_dir, 'VOT2019')
+        self.mtc_aic4_path = data_dir
         self.got10k_path = os.path.join(data_dir, 'got10k')
         self.got10k_lmdb_path = os.path.join(data_dir, 'got10k_lmdb')
         self.lasot_path = os.path.join(data_dir, 'lasot')

@@ -1,5 +1,5 @@
 DATA:
-  MAX_SAMPLE_INTERVAL: 200
+  MAX_SAMPLE_INTERVAL: 100
   MEAN:
   - 0.485
   - 0.456
@@ -9,9 +9,9 @@ DATA:
   - 0.224
   - 0.225
   SEARCH:
-    CENTER_JITTER: 4
+    CENTER_JITTER: 2.5
     FACTOR: 4.0
-    SCALE_JITTER: 0.75
+    SCALE_JITTER: 0.4
     SIZE: 256
     NUMBER: 1
   TEMPLATE:
@@ -45,7 +45,7 @@ DATA:
 
 
 MODEL:
-  PRETRAIN_FILE: "/home/youssef_mohammad/projects/Aba-ViTrack/output/checkpoints/train/abavitrack/abavit_patch16_224/AbaViTrack_ep0300.pth.tar"
+  PRETRAIN_FILE: "checkpoints/AbaViTrack_ep0010.pth.tar"
   EXTRA_MERGER: False
   RETURN_INTER: False
   BACKBONE:

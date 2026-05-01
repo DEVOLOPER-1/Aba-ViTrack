@@ -43,8 +43,8 @@ if run_preprocess:
 else:
     print("Skipping preprocessing.")
 
-config = ask("Config name", "abavit_gs_8")
-test_epoch = ask("Test epoch (checkpoint number)", "17")
+config = "abavit_patch16_224"
+test_epoch = "10"
 threads = ask("Inference threads", "8")
 
 results_root = ask("Results root directory", "/app/outputs/tracking_results")

@@ -48,9 +48,9 @@ class Corner_Predictor(nn.Module):
             self.indice = torch.arange(0, self.feat_sz).view(-1, 1) * self.stride
             # generate mesh-grid
             self.coord_x = self.indice.repeat((self.feat_sz, 1)) \
-                .view((self.feat_sz * self.feat_sz,)).float().cuda()
+                .view((self.feat_sz * self.feat_sz,)).float().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
             self.coord_y = self.indice.repeat((1, self.feat_sz)) \
-                .view((self.feat_sz * self.feat_sz,)).float().cuda()
+                .view((self.feat_sz * self.feat_sz,)).float().to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
     def forward(self, x, return_dist=False, softmax=True):
         """ Forward pass with input x. """

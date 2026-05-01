@@ -3,8 +3,6 @@ import os
 from lib.test.evaluation.environment import env_settings
 from lib.config.abavitrack.config import cfg, update_config_from_file
 
-import os
-
 
 def parameters(yaml_name: str, test_epoch):
     params = TrackerParams()

@@ -182,8 +182,8 @@ class VisionTransformer(nn.Module):
         self.total_token_cnt = int((128/patch_size)**2 + (256/patch_size)**2) + self.num_tokens
 
         if args.distr_prior_alpha >0. :
-            self.distr_target = torch.Tensor(get_distribution_target(length=len(self.blocks),standardized=True, target_depth=int(len(self.blocks)*2/3))).cuda()
-            self.kl_loss = nn.KLDivLoss(reduction='batchmean').cuda()
+            self.distr_target = torch.Tensor(get_distribution_target(length=len(self.blocks),standardized=True, target_depth=int(len(self.blocks)*2/3))).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            self.kl_loss = nn.KLDivLoss(reduction='batchmean').to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
         self.cat_mode = 'direct'
 
@@ -220,11 +220,11 @@ class VisionTransformer(nn.Module):
         bs = x.size()[0]
 
         if self.c_token is None or bs != self.c_token.size()[0]:
-            self.c_token = Variable(torch.zeros(bs, self.total_token_cnt).cuda())
-            self.R_token = Variable(torch.ones(bs, self.total_token_cnt).cuda())
-            self.mask_token = Variable(torch.ones(bs, self.total_token_cnt).cuda())
-            self.rho_token = Variable(torch.zeros(bs, self.total_token_cnt).cuda())
-            self.counter_token = Variable(torch.ones(bs, self.total_token_cnt).cuda())
+            self.c_token = Variable(torch.zeros(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
+            self.R_token = Variable(torch.ones(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
+            self.mask_token = Variable(torch.ones(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
+            self.rho_token = Variable(torch.zeros(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
+            self.counter_token = Variable(torch.ones(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
 
         c_token = self.c_token.clone()
         R_token = self.R_token.clone()
@@ -251,7 +251,7 @@ class VisionTransformer(nn.Module):
             block_output = block_output * mask_token.float().view(bs, self.total_token_cnt, 1)
 
             if i==len(self.blocks)-1:
-                h_token = Variable(torch.ones(bs, self.total_token_cnt).cuda())
+                h_token = Variable(torch.ones(bs, self.total_token_cnt).to(torch.device("cuda" if torch.cuda.is_available() else "cpu")))
 
             c_token = c_token + h_token
             self.rho_token = self.rho_token + mask_token.float()
