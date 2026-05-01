@@ -85,7 +85,7 @@ torchaudio==2.4.1+cu118
 torchinfo==1.8.0
 torchvision==0.19.1+cu118
 tornado==6.4.2
-tqdm @ file:///croot/tqdm_1724853939799/work
+tqdm
 triton==3.0.0
 types-pytz==2024.2.0.20241221
 typing_extensions==4.13.2

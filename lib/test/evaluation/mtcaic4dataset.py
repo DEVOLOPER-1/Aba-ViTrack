@@ -22,12 +22,16 @@ class MTCAIC4Dataset(BaseDataset):
 
     def __init__(self, split='public_lb'):
         super().__init__()
-        self.base_path = self.env_settings.mtc_aic4_dir
+        self.base_path = '/dataset'
         self.split = split
 
-        manifest_path = os.path.join(
-            self.base_path, 'metadata', 'contestant_manifest.json'
-        )
+        manifest_path = '/dataset/metadata/contestant_manifest.json'
+
+        if not os.path.exists(manifest_path):
+            print(f"CRITICAL: Manifest not found at {manifest_path}")
+            # List files to debug live
+            print(f"Contents of {self.base_path}: {os.listdir(self.base_path)}")
+
         with open(manifest_path, 'r') as f:
             self.manifest = json.load(f)[self.split]
 

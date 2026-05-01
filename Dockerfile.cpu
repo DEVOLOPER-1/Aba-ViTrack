@@ -7,7 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git wget curl ca-certificates build-essential \
     libglib2.0-0 libsm6 libxrender1 libxext6 libgl1-mesa-glx \
-    libjpeg-turbo8-dev libpng-dev libtiff-dev liblmdb-dev \
+    libjpeg-dev libpng-dev libtiff-dev liblmdb-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install CPU-only PyTorch
