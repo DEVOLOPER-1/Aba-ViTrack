@@ -41,17 +41,9 @@ def main():
         manifest = json.load(f)
 
     tasks = []
-
-    # --- MODIFIED SECTION ---
-    # Check if 'public_lb' exists to prevent KeyErrors, then only loop through those sequences
-    if "public_lb" in manifest:
-        print(f"Found {len(manifest['public_lb'])} sequences in the public leaderboard.")
-        for seq_key, seq_info in manifest["public_lb"].items():
+    for split, sequences in manifest.items():
+        for seq_key, seq_info in sequences.items():
             tasks.append((seq_key, seq_info, args.dataset_root))
-    else:
-        print("Error: 'public_lb' key was not found in the manifest JSON.")
-        return
-    # ------------------------
 
     max_workers = args.max_workers
     print(f"Starting parallel extraction using {max_workers} workers...")
