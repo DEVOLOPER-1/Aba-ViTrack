@@ -6,6 +6,8 @@
 - Docker installed and configured
 - Dataset directory prepared (see Dataset Preparation section below)
 - For GPU: NVIDIA Docker runtime installed
+- Our pre-trained checkpoint file (`AbaViTrack_ep0010.pth.tar`) placed in project root under `checkpoints/` (name and positioning are strictly required)
+    > https://drive.google.com/file/d/1qLZT-t4KaD0L13T2DCN8XyB74PN4c-GM/view?usp=sharing
 
 ### Building the Docker Image
 
@@ -191,5 +193,5 @@ docker run -it --rm \
 # Results root directory [/app/outputs/tracking_results]: /app/outputs/tracking_results
 # Output CSV file [/app/submission.csv]: /app/submission.csv
 
-# 4. Results will be available in ~/results/ on your host machine
+# 4. Results will be available in ./results/ on your host machine
 ```
