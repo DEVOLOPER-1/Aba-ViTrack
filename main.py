@@ -15,7 +15,7 @@ def ask(prompt, default=None):
 
 print("Aba‑ViTrack Finetuned & enhanced Submission Pipeline by Team: Zerone")
 
-dataset_root = ask("Dataset root path", "contest_release")
+dataset_root = ask("Dataset root path", "/dataset")
 manifest_default = os.path.join(dataset_root, "metadata", "contestant_manifest.json")
 manifest_path = ask("Manifest JSON path", manifest_default)
 max_workers = ask("Number of CPU workers for extraction", "8")
@@ -48,7 +48,7 @@ test_epoch = "10"
 threads = ask("Inference threads", "8")
 
 results_root = ask("Results root directory", "/app/outputs/tracking_results")
-output_csv = ask("Output CSV file", "/app/submission.csv")
+output_csv = ask("Output CSV file", "/app/outputs/submission.csv")
 
 print(">>> Tracking (Aba‑ViTrack inference)")
 subprocess.run(

@@ -1,106 +1,53 @@
 # Aba-ViTrack Docker Execution Guide
->> Please note that GPU docker image is not tested yet. if it didn't work fallback to the CPU version and keep the threads low 1 or 2 maximum, and expect it would take time
-## Quick Start
+**Submission Pipeline by Team: Zerone**
 
-### Prerequisites
-- Docker installed and configured
-- Dataset directory prepared (see Dataset Preparation section below)
-- For GPU: NVIDIA Docker runtime installed
-- Our pre-trained checkpoint file (`AbaViTrack_ep0010.pth.tar`) placed in project root under `checkpoints/` (name and positioning are strictly required)
-    > https://drive.google.com/file/d/1qLZT-t4KaD0L13T2DCN8XyB74PN4c-GM/view?usp=sharing
+> **Performance Note:** The GPU Docker image is fully tested, optimized, and highly recommended (achieves ~81 FPS). If hardware constraints require falling back to the CPU version, expect significantly longer processing times. **For CPU execution, it is strongly advised to keep Inference Threads to 1 or 2 maximum** to prevent system overload.
 
-### Building the Docker Image
-
-**CPU Version:**
-```bash
-docker build -f Dockerfile.cpu -t abavitrack-cpu .
-```
-
-**GPU Version:**
-```bash
-docker build -f Dockerfile.gpu -t abavitrack-gpu .
-```
+## Table of Contents
+1. [Prerequisites](#1-prerequisites)
+2. [Dataset Preparation](#2-dataset-preparation)
+3. [Building the Docker Image](#3-building-the-docker-image)
+4. [Running the Pipeline](#4-running-the-pipeline)
+5. [Interactive Configuration Prompts](#5-interactive-configuration-prompts)
+6. [Outputs & Results](#6-outputs--results)
+7. [Hardcoded Defaults & Warnings](#7-hardcoded-defaults--warnings)
+8. [Troubleshooting](#8-troubleshooting)
 
 ---
 
-## Running the Container
+## 1. Prerequisites
 
-### CPU Version
-```bash
-docker run -it --rm \
-    -v /path/to/dataset:/dataset \
-    -v /path/to/output:/app/outputs \
-    abavitrack-cpu
-```
+**A. Install Docker**
+*   **Linux (Ubuntu/Debian):** 
+    ```bash
+    curl -fsSL [https://get.docker.com](https://get.docker.com) -o get-docker.sh
+    sudo sh get-docker.sh
+    ```
+*   **Windows:** 
+    Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/). Ensure the **WSL 2 backend** is enabled in the settings for optimal performance.
 
-### GPU Version
-```bash
-docker run --gpus all -it --rm --gpus all \
-    -v /path/to/dataset:/dataset \
-    -v /path/to/output:/app/outputs \
-    abavitrack-gpu
-```
+**B. Install NVIDIA Container Toolkit (GPU Version Only)**
+*   To run the GPU version on Linux, you must install the NVIDIA Toolkit so Docker can interface with your graphics card:
+    ```bash
+    curl -fsSL [https://nvidia.github.io/libnvidia-container/gpgkey](https://nvidia.github.io/libnvidia-container/gpgkey) | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+      && curl -s -L [https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list](https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list) | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    sudo apt-get update
+    sudo apt-get install -y nvidia-container-toolkit
+    sudo systemctl restart docker
+    ```
 
-> **Important:** 
- - Replace `/path/to/dataset` with your dataset directory
- - Replace `/path/to/output` with where you want the submission CSV saved
- - **Do NOT modify the container-side paths** (`/dataset` and `/app/outputs`)
-
----
-
-## Configuration & Prompts
-
-Once the container starts, you will see the following interactive prompts:
-
-```
-Aba‑ViTrack Finetuned & enhanced Submission Pipeline by Team: Zerone
-Dataset root path [contest_release]: 
-Manifest JSON path [/dataset/metadata/contestant_manifest.json]: 
-Number of CPU workers for extraction [8]: 
-Run data preprocessing (y/n) [n]: 
-Number of GPUs [0]: 
-Inference threads [8]: 2
-Results root directory [/app/outputs/tracking_results]: 
-Output CSV file [/app/submission.csv]: 
-```
-
-### Prompt Details
-
-| Prompt | Default | Notes |
-|--------|---------|-------|
-| Dataset root path | `contest_release` | Path relative to `/dataset` mount point |
-| Manifest JSON path | `/dataset/metadata/contestant_manifest.json` | Path to the contest manifest file |
-| CPU workers for extraction | `8` | Number of parallel workers for preprocessing |
-| Run data preprocessing | `n` | **Set to `y` at least once** (required for first run) |
-| Number of GPUs | `0` (CPU) / `1` (GPU) | Auto-set based on image; override if needed |
-| Inference threads | `8` | Number of inference threads |
-| Results root directory | `/app/outputs/tracking_results` | Where tracking results are saved |
-| Output CSV file | `/app/submission.csv` | Final submission CSV filename |
+**C. Download the Model Checkpoint**
+*   Our pre-trained checkpoint file (`AbaViTrack_ep0010.pth.tar`) MUST be placed in the project root under the `checkpoints/` directory before building the image.
+    > Download link: [Google Drive Link](https://drive.google.com/file/d/1qLZT-t4KaD0L13T2DCN8XyB74PN4c-GM/view?usp=sharing)
 
 ---
 
-## ⚠️ Hardcoded Defaults & Warnings
+## 2. Dataset Preparation
 
-**The following parameters are now hardcoded and cannot be changed via prompts:**
-
-| Parameter | Value | Source |
-|-----------|-------|--------|
-| **Config Name** | `abavit_gs_8` | `main.py` (line 46) |
-| **Test Epoch** | `10` | `main.py` (line 47) |
-| **Checkpoint File** | `AbaViTrack_ep0010.pth.tar` | `Dockerfile.cpu` (line 34) / `Dockerfile.gpu` (line 36) |
-| **Checkpoint Path** | `/app/checkpoints/AbaViTrack_ep0010.pth.tar` | Built into Docker image |
-
-**If you need to change these values, you must:**
-1. Edit the corresponding source files
-2. Rebuild the Docker image using `docker build`
-
----
-
-## Dataset Preparation
-
-### Directory Structure
-The dataset should be organized as follows:
-```
+Before running the container, your raw dataset must be organized on your local machine as follows:
+```text
 /path/to/dataset/
 ├── Dataset1
 |   └── video1.mp4
@@ -109,89 +56,104 @@ The dataset should be organized as follows:
 └── ...
 ```
 
-### Preprocessing
-When prompted, enter `y` to preprocess the data. This will:
-1. Extract frames from video files
-2. Create an `img/` subdirectory in each video folder
-3. Store preprocessed frames at: `/dataset/video_name/img/`
-
-Example result after preprocessing:
-```
-/path/to/dataset/
-├── video1/
-│   ├── img/
-│   │   ├── 000001.jpg
-│   │   ├── 000002.jpg
-│   │   └── ...
-│   ├── video1.mp4
-|   └── ...
-├── metadata/
-│   └── contestant_manifest.json
-└── ...
-```
+*Note: The container will handle the actual extraction of frames from these `.mp4` files during the execution phase.*
 
 ---
 
-## Output Files
+## 3. Building the Docker Image
 
-**Note:** This script is optimized for competition evaluators to generate submission CSVs with fast, consistent results.
+Build the environment that matches your hardware.
 
-Results are automatically saved to your mounted output directory:
-
-| Output | Location | Purpose |
-|--------|----------|---------|
-| Tracking Results | `/app/outputs/tracking_results/` | Intermediate tracking predictions for all sequences |
-| Submission CSV | `/app/submission.csv` | **Final submission file for evaluation** |
-
-The generated CSV will be available at `/path/to/output/submission.csv` on your host machine (where you mounted `/app/outputs`).
-
----
-
-## Troubleshooting
-
-### Issue: "Checkpoint not found"
-- Ensure `checkpoints/AbaViTrack_ep0010.pth.tar` exists in the project root before building
-- Verify the checkpoint file is copied into the Docker image
-- Rebuild the Docker image: `docker build -f Dockerfile.cpu -t abavitrack-cpu .`
-
-### Issue: "Manifest file not found"
-- Verify the manifest path is correct relative to the `/dataset` mount point
-- Check that the file exists on your host machine at the mounted path
-
-### Issue: Preprocessing fails
-- Ensure sufficient disk space in the dataset directory
-- Check that video files are valid and readable
-- Verify the number of CPU workers doesn't exceed available CPU cores
-- Check file permissions on the host machine
-
-### Issue: Results not saved to host
-- Ensure you mounted an output directory with `-v /path/to/output:/app/outputs`
-- Verify write permissions on the host output directory
-- Check disk space availability
-
----
-
-## Example: Complete Workflow
-
+**GPU Version (Recommended):**
 ```bash
-# 1. Build the CPU image
-docker build -f Dockerfile.gpu -t abavitrack-gpu .
-
-# 2. Run with dataset and output mounts
-docker run -it --rm \
-    -v ~/datasets/mtc-aic:/dataset \
-    -v ~/results:/app/outputs \
-    abavitrack-cpu
-
-# 3. When prompted, answer:
-# Dataset root path [contest_release]: /dataset
-# Manifest JSON path [/dataset/metadata/contestant_manifest.json]: /dataset/metadata/contestant_manifest.json
-# Number of CPU workers for extraction [8]: 8
-# Run data preprocessing (y/n) [n]: y
-# Number of GPUs [0]: 0
-# Inference threads [8]: 2
-# Results root directory [/app/outputs/tracking_results]: /app/outputs/tracking_results
-# Output CSV file [/app/submission.csv]: /app/submission.csv
-
-# 4. Results will be available in ./results/ on your host machine
+docker build --network=host -f Dockerfile.gpu -t abavitrack-gpu .
 ```
+
+**CPU Version:**
+```bash
+docker build -f Dockerfile.cpu -t abavitrack-cpu .
+```
+
+---
+
+## 4. Running the Pipeline
+
+Mount your prepared dataset and a local output folder, then start the container. 
+
+> **Important Directory Mapping:** 
+> *   Replace `/path/to/dataset` with your absolute local dataset directory.
+> *   Replace `/path/to/output` with the local folder where you want the submission CSV saved.
+> *   **Do NOT modify the container-side paths** (`:/dataset` and `:/app/outputs`). Our container utilizes a universal path fix that guarantees results are routed to these exact internal directories regardless of the host machine.
+
+**GPU Version (Recommended):**
+```bash
+docker run --runtime=nvidia -it --rm \
+    -v /path/to/dataset:/dataset \
+    -v /path/to/output:/app/outputs \
+    abavitrack-gpu
+```
+
+**CPU Version:**
+```bash
+docker run -it --rm \
+    -v /path/to/dataset:/dataset \
+    -v /path/to/output:/app/outputs \
+    abavitrack-cpu
+```
+
+---
+
+## 5. Interactive Configuration Prompts
+
+Once the container starts, you will see an interactive menu. The pipeline is designed to use the default containerized paths, meaning you can simply press **Enter** for almost every prompt.
+
+### Expected Prompts & Actions:
+
+| Prompt | Default Container Value | Your Action |
+| :--- | :--- | :--- |
+| **Dataset root path** | `/dataset` | Press Enter |
+| **Manifest JSON path** | `/dataset/metadata/contestant_manifest.json` | Press Enter |
+| **CPU workers (extraction)** | `8` | Press Enter |
+| **Run data preprocessing** | `n` | Type `y` on your first run to extract frames |
+| **Inference threads** | `8` | **GPU:** Type up to 8 depending on VRAM. <br>**CPU:** Type 1 or 2 |
+| **Results root directory** | `/app/outputs/tracking_results` | Press Enter |
+| **Output CSV file** | `/app/outputs/submission.csv` | Press Enter |
+
+---
+
+## 6. Outputs & Results
+
+This pipeline is optimized for competition evaluators to generate submission CSVs seamlessly. Results are automatically routed to your mounted local output directory:
+
+| Output | Host Location | Purpose |
+| :--- | :--- | :--- |
+| **Tracking Results** | `/path/to/output/tracking_results/` | Intermediate predictions (`.txt` files) for all sequences. |
+| **Submission CSV** | **`/path/to/output/submission.csv`** | **Final submission file for evaluation**. |
+
+---
+
+## 7. ⚠️ Hardcoded Defaults & Warnings
+
+The following parameters are hardcoded to ensure reproducibility and cannot be changed via the interactive prompts:
+
+| Parameter | Value |
+| :--- | :--- |
+| **Config Name** | `abavit_patch16_224` |
+| **Test Epoch** | `10` |
+| **Checkpoint File** | `AbaViTrack_ep0010.pth.tar` |
+| **Checkpoint Path** | `/app/checkpoints/AbaViTrack_ep0010.pth.tar` |
+
+*If you need to change these values, you must edit the `main.py` or `Dockerfile` source files and rebuild the image.*
+
+---
+
+## 8. Troubleshooting
+
+*   **Issue: "Checkpoint not found"**
+    *   Ensure `AbaViTrack_ep0010.pth.tar` exists in the `checkpoints/` folder before running the `docker build` command.
+*   **Issue: "Manifest file not found" or "Contents of /dataset: []"**
+    *   Verify your host dataset path is correct in the `-v` mount flag. If Docker cannot find your host folder, it will silently mount an empty directory.
+*   **Issue: Tracker prints "FPS: -1" and finishes instantly**
+    *   The framework has a built-in caching mechanism. If the target output directory already contains `.txt` results from a previous run, the tracker will skip those sequences. Clear your local output directory to force a fresh run.
+*   **Issue: Results not saved to host**
+    *   Ensure you did not change the default `/app/outputs/...` prompts during the script execution. The Docker volume strictly maps to that internal folderYou are totally right—I definitely dropped the ball on the ordering there. Putting the execution commands *before* explaining how to prepare the dataset is putting the cart way before the horse. I'm wide awake now!

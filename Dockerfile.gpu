@@ -29,11 +29,21 @@ RUN pip install --no-cache-dir typing_extensions==4.8.0 && \
     torchaudio==2.4.1+cu118 \
     --index-url https://download.pytorch.org/whl/cu118
 
-# Install remaining Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install remaining Python dependencies with an extended timeout
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    pip install --default-timeout=1000 --no-cache-dir -r requirements.txt
 
 # Now copy the rest of the project
 COPY . .
+
+# --- UNIVERSAL PATH FIX ---
+# Wipe the tainted local.py and force the tracker to use the container's output folder
+RUN echo "from lib.test.evaluation.environment import EnvSettings\n\
+def local_env_settings():\n\
+    settings = EnvSettings()\n\
+    settings.results_path = '/app/outputs/tracking_results/'\n\
+    return settings\n" > lib/test/evaluation/local.py
+# --------------------------
 
 # Default environment variables (override with -e or by mounting new values)
 ENV DATASET_ROOT=/dataset \
