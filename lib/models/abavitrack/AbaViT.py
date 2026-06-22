@@ -182,7 +182,7 @@ class VisionTransformer(nn.Module):
         self.total_token_cnt = int((128/patch_size)**2 + (256/patch_size)**2) + self.num_tokens
 
         if args.distr_prior_alpha >0. :
-            self.distr_target = torch.Tensor(get_distribution_target(length=len(self.blocks),standardized=True, target_depth=int(len(self.blocks)*2/3))).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            self.distr_target = torch.Tensor(get_distribution_target(mode='gamma', length=len(self.blocks), standardized=True, target_depth=int(len(self.blocks) * 2 / 3))).to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
             self.kl_loss = nn.KLDivLoss(reduction='batchmean').to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
         self.cat_mode = 'direct'

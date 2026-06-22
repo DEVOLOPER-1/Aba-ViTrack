@@ -38,6 +38,19 @@ def get_distribution_target(mode='gaussian', length=12, max=1, standardized=True
         data = skewnorm.pdf(data, a=-4, loc=target_depth)
         return data
 
+    elif mode == 'gamma':
+        from scipy.stats import gamma
+        data = np.arange(length)
+        # alpha=3.0 (shape), loc aligns the peak, scale=1/beta
+        data = gamma.pdf(data, a=3.0, loc=target_depth - 3, scale=1.25)
+
+        if standardized:
+            scaling_factor = (1. - buffer) / sum(data[:target_depth])
+            data *= scaling_factor
+
+        print('\nForming GAMMA distribution at:', data)
+        return data
+
     else:
         print('Get distributional prior not implemented!')
         raise NotImplementedError
