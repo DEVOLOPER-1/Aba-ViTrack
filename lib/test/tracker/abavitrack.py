@@ -79,7 +79,7 @@ class AbaViTrack(BaseTracker):
         print('net')
 
         # Safely load the checkpoint
-        ckpt = torch.load(self.params.checkpoint, map_location='cpu')
+        ckpt = torch.load(self.params.checkpoint, map_location='cuda' if torch.cuda.is_available() else 'cpu')
 
         # Check if it has the ['net'] wrapper, otherwise assume it is a raw state_dict
         if 'net' in ckpt:
