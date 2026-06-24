@@ -20,7 +20,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Parse args for training')
     # for train
-    parser.add_argument('--script', type=str, default='ostrack', choices=['ostrack'],
+    parser.add_argument('--script', type=str, default='abavitrack', choices=['ostrack', 'abavitrack'],
                         help='training script name')
     parser.add_argument('--config', type=str, default='vitb_256_mae_ce_32x4_ep300', help='yaml configure file name')
     args = parser.parse_args()
@@ -104,7 +104,8 @@ if __name__ == "__main__":
     z_sz = cfg.TEST.TEMPLATE_SIZE
     x_sz = cfg.TEST.SEARCH_SIZE
 
-    if args.script == "ostrack":
+    if args.script == "abavitrack" or args.script == "ostrack":
+        model_module = importlib.import_module('lib.models')
         model_module = importlib.import_module('lib.models')
         model_constructor = model_module.build_abavitrack
         model = model_constructor(cfg, training=False)

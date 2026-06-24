@@ -1,7 +1,7 @@
 absl-py==2.3.1
 annotated-types==0.7.0
 certifi==2026.4.22
-cffi==1.17.1
+cffi==2.0.0
 charset-normalizer==3.4.7
 click==8.1.8
 colorama==0.4.6
@@ -48,10 +48,9 @@ nvidia-cusparse-cu11==11.7.5.86
 nvidia-nccl-cu11==2.20.5
 nvidia-nvtx-cu11==11.8.86
 oauthlib==3.3.1
-opencv-python==4.13.0.92
+opencv-python==4.10.0.84
 packaging==26.2
 pandas==2.0.3
-pandas-stubs==2.0.3.230814
 pillow==10.4.0
 platformdirs==4.3.6
 protobuf==5.29.6
@@ -80,10 +79,10 @@ tensorboard-data-server==0.7.2
 tensorboardX==2.6.2.2
 tikzplotlib==0.10.1
 timm==0.5.4
-torch==2.4.1+cu118
-torchaudio==2.4.1+cu118
+#torch==2.4.1+cu118
+#torchaudio==2.4.1+cu118
 torchinfo==1.8.0
-torchvision==0.19.1+cu118
+#torchvision==0.19.1+cu118
 tornado==6.4.2
 tqdm
 triton==3.0.0
@@ -91,7 +90,7 @@ types-pytz==2024.2.0.20241221
 typing_extensions==4.13.2
 tzdata==2026.2
 urllib3==2.2.3
-visdom==0.2.4
+#visdom==0.2.4
 wandb==0.24.2
 webcolors==24.8.0
 websocket-client==1.8.0
