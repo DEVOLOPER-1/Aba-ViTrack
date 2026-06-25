@@ -78,7 +78,7 @@ class AbaViTrack(nn.Module):
             outputs_coord_new = outputs_coord.view(bs, Nq, 4)
             out = {'pred_boxes': outputs_coord_new,
                    'score_map': score_map,
-                   }
+                   'opt_feat': opt_feat}
             return out
 
         elif self.head_type == "CENTER":
@@ -90,7 +90,8 @@ class AbaViTrack(nn.Module):
             out = {'pred_boxes': outputs_coord_new,
                    'score_map': score_map_ctr,
                    'size_map': size_map,
-                   'offset_map': offset_map}
+                   'offset_map': offset_map,
+                   'opt_feat': opt_feat}
             return out
         else:
             raise NotImplementedError

@@ -3,6 +3,7 @@ import numpy as np
 from lib.models.abavitrack import build_abavitrack
 from lib.test.tracker.basetracker import BaseTracker
 import torch
+import torch.nn.functional as F
 
 from lib.test.tracker.vis_utils import gen_visualization
 from lib.test.utils.hann import hann2d
@@ -125,6 +126,11 @@ class AbaViTrack(BaseTracker):
         # If confidence drops below this, we trust the Kalman prediction instead of the visual model
         self.confidence_threshold = 0.35
 
+        # --- SIMILARITY LAYER CONSTANTS (NEW) ---
+        self.target_memory = None
+        self.similarity_threshold = 0.55  # If similarity drops below this, it's a distractor
+        self.memory_lr = 0.1              # Moving average update rate to handle target rotation/scaling
+
     def initialize(self, image, info: dict):
         # forward the template once
         z_patch_arr, resize_factor, z_amask_arr = sample_target(image, info['init_bbox'], self.params.template_factor,
@@ -143,6 +149,9 @@ class AbaViTrack(BaseTracker):
         # save states
         self.state = info['init_bbox']
         self.frame_id = 0
+
+        # --- RESET FEATURE MEMORY (NEW) ---
+        self.target_memory = None
 
         # --- INITIALIZE KALMAN FILTER ---
         init_cx = self.state[0] + 0.5 * self.state[2]
@@ -189,32 +198,54 @@ class AbaViTrack(BaseTracker):
         # Extract highest confidence from the visual score map
         max_confidence = pred_score_map.max().item()
 
+        # --- FEATURE SIMILARITY EXTRACTION (NEW) ---
+        opt_feat = out_dict['opt_feat']  # Shape: (1, C, 16, 16)
+
+        # Find the spatial (y, x) index of the peak confidence
+        max_idx = pred_score_map.view(-1).argmax().item()
+        peak_y = max_idx // self.feat_sz
+        peak_x = max_idx % self.feat_sz
+
+        # Extract the vector at the predicted object's center
+        current_target_feat = opt_feat[0, :, peak_y, peak_x]  # Shape: (C,)
+
+        # Calculate Cosine Similarity
+        if self.target_memory is None:
+            self.target_memory = current_target_feat.clone().detach()
+            similarity_score = 1.0
+        else:
+            similarity_score = F.cosine_similarity(
+                current_target_feat.unsqueeze(0),
+                self.target_memory.unsqueeze(0)
+            ).item()
+
         # Baseline: Take the mean of all pred boxes as the final result
         pred_box = (pred_boxes.mean(
             dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
-
-        # Calculate raw visual box
         visual_bbox = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-        # --- 2. OCCLUSION RECOVERY LOGIC ---
-        if max_confidence > self.confidence_threshold:
-            # The ViT clearly sees the target. Trust the visual model.
+        # --- 2. OCCLUSION / DISTRACTOR RECOVERY LOGIC (UPDATED) ---
+        # Trigger visual tracking ONLY if confidence is high AND feature similarity matches
+        if max_confidence > self.confidence_threshold and similarity_score > self.similarity_threshold:
+            # The ViT clearly sees the true target.
             self.state = visual_bbox
             self.last_w, self.last_h = visual_bbox[2], visual_bbox[3]
+
+            # Update the Feature Memory using exponential moving average
+            self.target_memory = ((1.0 - self.memory_lr) * self.target_memory) + \
+                                 (self.memory_lr * current_target_feat.clone().detach())
 
             # Update the Kalman Filter with the new real measurement
             vis_cx = visual_bbox[0] + 0.5 * visual_bbox[2]
             vis_cy = visual_bbox[1] + 0.5 * visual_bbox[3]
             self.kf.update(vis_cx, vis_cy)
         else:
-            # OCCLUSION DETECTED! The visual confidence collapsed.
+            # OCCLUSION OR DISTRACTOR DETECTED!
             # Ignore the ViT's blind guess and use the Kalman kinematic prediction.
             kf_x1 = kf_pred_cx - (0.5 * self.last_w)
             kf_y1 = kf_pred_cy - (0.5 * self.last_h)
 
             self.state = clip_box([kf_x1, kf_y1, self.last_w, self.last_h], H, W, margin=10)
-            # Note: We do NOT call self.kf.update() here. The filter will coast purely on
-            # its internal velocity and acceleration equations until confidence returns.
 
         # for debug
         # self.debug = True  # <--- FORCE THE DEBUG BLOCK TO RUN
