@@ -217,36 +217,53 @@ class AbaViTrack(BaseTracker):
             # its internal velocity and acceleration equations until confidence returns.
 
         # for debug
+        # self.debug = True  # <--- FORCE THE DEBUG BLOCK TO RUN
         self.use_visdom = False
         if self.debug:
-            if not self.use_visdom:
-                x1, y1, w, h = self.state
+            # Create separate folders for bounding boxes and ponder masks
+            save_dir_bbox = os.path.join('debug', 'abavit_patch16_224', 'bbox')
+            save_dir_ponder = os.path.join('debug', 'abavit_patch16_224', 'ponder')
+            os.makedirs(save_dir_bbox, exist_ok=True)
+            os.makedirs(save_dir_ponder, exist_ok=True)
+
+            # 1. Draw and Save Bounding Box Image
+            x1, y1, w, h = self.state
+            image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # Draw Tracker Prediction (Red)
+            cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
+
+            # Draw Ground Truth (Green) if available
+            if info.get('gt_bbox') is not None:
                 x2, y2, w2, h2 = info['gt_bbox']
-                image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
                 cv2.rectangle(image_BGR, (int(x2), int(y2)), (int(x2 + w2), int(y2 + h2)), color=(0, 255, 0),
-                              thickness=3)
-                save_path = os.path.join('debug', "%04d.jpg" % self.frame_id)
-                cv2.imwrite(save_path, image_BGR)
-            else:
-                self.visdom.register((image, info['gt_bbox'].tolist(), self.state), 'Tracking', 1, 'Tracking')
+                              thickness=2)
 
-                self.visdom.register(torch.from_numpy(x_patch_arr).permute(2, 0, 1), 'image', 1, 'search_region')
-                self.visdom.register(torch.from_numpy(self.z_patch_arr).permute(2, 0, 1), 'image', 1, 'template')
-                self.visdom.register(pred_score_map.view(self.feat_sz, self.feat_sz), 'heatmap', 1, 'score_map')
-                self.visdom.register((pred_score_map * self.output_window).view(self.feat_sz, self.feat_sz), 'heatmap',
-                                     1, 'score_map_hann')
+            cv2.imwrite(os.path.join(save_dir_bbox, "%04d.jpg" % self.frame_id), image_BGR)
 
-                if 'removed_indexes_s' in out_dict and out_dict['removed_indexes_s']:
-                    removed_indexes_s = out_dict['removed_indexes_s']
-                    removed_indexes_s = [removed_indexes_s_i.cpu().numpy() for removed_indexes_s_i in removed_indexes_s]
-                    masked_search = gen_visualization(x_patch_arr, removed_indexes_s)
-                    self.visdom.register(torch.from_numpy(masked_search).permute(2, 0, 1), 'image', 1, 'masked_search')
+            # 2. Draw and Save Ponder Mask (Background Ignorance Heatmap)
+            # AbaViT tracks token survival depth in the backbone's counter_token tensor
+            if hasattr(self.network.backbone, 'counter_token') and self.network.backbone.counter_token is not None:
+                import numpy as np
 
-                while self.pause_mode:
-                    if self.step:
-                        self.step = False
-                        break
+                # The search region is represented by the last 256 tokens in the tensor
+                survived_layers = self.network.backbone.counter_token[0, -256:].view(16, 16).cpu().numpy()
+
+                # Normalize the survival depths to 0-255 (Max ViT depth is 12)
+                mask_normalized = (survived_layers / 12.0) * 255.0
+                mask_normalized = mask_normalized.astype(np.uint8)
+
+                # Resize the 16x16 token grid to match the 256x256 search image
+                mask_resized = cv2.resize(mask_normalized, (x_patch_arr.shape[1], x_patch_arr.shape[0]),
+                                          interpolation=cv2.INTER_NEAREST)
+
+                # Apply a color map (Red = kept for all 12 layers, Blue = dropped early)
+                heatmap = cv2.applyColorMap(mask_resized, cv2.COLORMAP_JET)
+
+                # Blend the heatmap over the original search region image
+                search_bgr = cv2.cvtColor(x_patch_arr.astype(np.uint8), cv2.COLOR_RGB2BGR)
+                blended = cv2.addWeighted(search_bgr, 0.5, heatmap, 0.5, 0)
+
+                cv2.imwrite(os.path.join(save_dir_ponder, "%04d.jpg" % self.frame_id), blended)
 
         if self.save_all_boxes:
             '''save all predictions'''
