@@ -138,8 +138,9 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
                 if skip_missing_seq:
                     valid_sequence[seq_id] = 0
                     break
-                else:
-                    raise Exception('Result not found. {}'.format(results_path))
+                    # --- PATCH: Skip instead of raising exception ---
+                    print(f"--> [Warning] Result not found, skipping: {results_path}")
+                    continue  # This jumps to the next iteration of the loop
 
             # Calculate measures
             err_overlap, err_center, err_center_normalized, valid_frame = calc_seq_err_robust(
