@@ -3,7 +3,7 @@ import json
 import numpy as np
 from lib.test.evaluation.data import Sequence, BaseDataset, SequenceList
 from lib.test.utils.load_text import load_text
-
+from lib.test.evaluation.environment import env_settings
 
 class MTCAIC4Dataset(BaseDataset):
     """
@@ -20,12 +20,15 @@ class MTCAIC4Dataset(BaseDataset):
     manifest key available for frame-path look-ups and submission generation.
     """
 
-    def __init__(self, split='public_lb'):
+    def __init__(self, split='train'):
         super().__init__()
-        self.base_path = '/dataset'
+        # --- DUAL-PATH LOGIC ---
+        # Pull the path from local.py. If it's empty, fallback to the Docker default
+        env_dir = env_settings().mtc_aic4_dir
+        self.base_path = env_dir if env_dir else '/dataset'
         self.split = split
 
-        manifest_path = '/dataset/metadata/contestant_manifest.json'
+        manifest_path = os.path.join(self.base_path, 'metadata', 'contestant_manifest.json')
 
         if not os.path.exists(manifest_path):
             print(f"CRITICAL: Manifest not found at {manifest_path}")
