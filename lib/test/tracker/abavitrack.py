@@ -124,26 +124,34 @@ class AbaViTrack(BaseTracker):
                 search=x_dict.tensors.to(self.device)
             )
 
-        # add hann windows
+        # --- PREDICTION PASS ---
         pred_score_map = out_dict['score_map']
+
+        # Apply the Hanning window penalty map
         response = self.output_window * pred_score_map
-        pred_boxes = self.network.box_head.cal_bbox(response, out_dict['size_map'], out_dict['offset_map'])
-        pred_boxes = pred_boxes.view(-1, 4)
 
-        # Extract highest confidence from the visual score map
-        max_confidence = pred_score_map.max().item()
+        # 1. EXTRACT FROM RESPONSE (Safety Check 2: use penalized map, not raw)
+        max_confidence = response.max().item()
 
-        # 2. DATA-INDEPENDENT FEATURE EXTRACTION
-        opt_feat = out_dict['opt_feat']  # Shape: (1, C, H_map, W_map)
-        _, _, H_map, W_map = pred_score_map.shape  # Dynamically grab shape
+        # 2. DATA-INDEPENDENT FEATURE EXTRACTION (Safety Check 1: proportional projection)
+        opt_feat = out_dict['opt_feat']  # Shape: (1, C, H_feat, W_feat)
 
-        max_idx = pred_score_map.view(-1).argmax().item()
-        peak_y = max_idx // W_map
-        peak_x = max_idx % W_map
+        _, _, H_feat, W_feat = opt_feat.shape
+        _, _, H_map, W_map = response.shape
 
-        current_target_feat = opt_feat[0, :, peak_y, peak_x]
+        # Find the peak coordinate in the penalized response map
+        max_idx = response.view(-1).argmax().item()
+        peak_y_map = max_idx // W_map
+        peak_x_map = max_idx % W_map
 
-        # 3. COSINE SIMILARITY
+        # Proportionally project the coordinate back to the ViT feature tensor
+        peak_y_feat = int(peak_y_map * (H_feat / H_map))
+        peak_x_feat = int(peak_x_map * (W_feat / W_map))
+
+        # Extract the target's semantic vector (Safety Check 3: detached below)
+        current_target_feat = opt_feat[0, :, peak_y_feat, peak_x_feat].clone().detach()
+
+        # 3. COSINE SIMILARITY VERIFICATION
         if self.target_memory is None:
             self.target_memory = current_target_feat.clone().detach()
             similarity_score = 1.0
@@ -153,28 +161,28 @@ class AbaViTrack(BaseTracker):
                 self.target_memory.unsqueeze(0)
             ).item()
 
-        # Baseline: Take the mean of all pred boxes as the final result
-        pred_box = (pred_boxes.mean(
-            dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
+        # Generate visual bbox from the heads
+        pred_boxes = self.network.box_head.cal_bbox(response, out_dict['size_map'], out_dict['offset_map'])
+        pred_boxes = pred_boxes.view(-1, 4)
+        pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()
         visual_bbox = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-        # 4. THE SYNERGY LOGIC (NO KALMAN)
+        # 4. THE FOCUS & PANIC SYNERGY (NO KALMAN FILTER)
         if max_confidence > self.confidence_threshold and similarity_score > self.similarity_threshold:
-            # TARGET CONFIRMED
-            # Update the bounding box state
+            # FOCUS STATE: Target Confirmed
             self.state = visual_bbox
 
-            # Snap the search window back to high-efficiency baseline
+            # Snap the search window back to high-efficiency baseline (e.g., 4.0)
             self.current_search_factor = self.base_search_factor
 
-            # Update memory to account for rotations/scale changes
+            # Update memory to account for drone rotation/scaling (Safety Check 3: EMA uses detached tensor)
             self.target_memory = ((1.0 - self.memory_lr) * self.target_memory) + \
                                  (self.memory_lr * current_target_feat.clone().detach())
         else:
-            # TARGET LOST / DISTRACTOR DETECTED
-            # We DO NOT update self.state! (It stays frozen at the last known location)
+            # PANIC STATE: Out-Of-View (OOV) OR Distractor Detected
+            # Do NOT update self.state. Freeze the box at the last known location.
 
-            # Multiply search factor to cast a wider net in the next frame
+            # Dynamically multiply the search factor to cast a massive net in the next frame
             if self.current_search_factor < 16.0:
                 self.current_search_factor *= 1.5
 
