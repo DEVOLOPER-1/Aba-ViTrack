@@ -66,10 +66,8 @@ class AbaViTrack(BaseTracker):
         self.save_all_boxes = params.save_all_boxes
         self.z_dict1 = {}
 
-        # --- SIMILARITY & EXPANSION CONSTANTS ---
+        # --- ADAPTIVE SYNERGY CONSTANTS ---
         self.target_memory = None
-        self.confidence_threshold = 0.35
-        self.similarity_threshold = 0.50
         self.memory_lr = 0.1
 
         # Safely store the highly-efficient baseline search factor
@@ -167,22 +165,45 @@ class AbaViTrack(BaseTracker):
         pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()
         visual_bbox = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-        # 4. THE FOCUS & PANIC SYNERGY (NO KALMAN FILTER)
-        if max_confidence > self.confidence_threshold and similarity_score > self.similarity_threshold:
+        # --- 4. ADAPTIVE SYNERGY LOGIC ---
+
+        # Base thresholds (Safe, conservative defaults)
+        base_conf = 0.35
+        base_sim = 0.50
+
+        # Dynamic Relaxation
+        # 1. If similarity is excellent, we can survive poor visual confidence (Motion Blur)
+        dynamic_conf_thresh = base_conf - (max(0, similarity_score - 0.65) * 0.5)
+
+        # 2. If visual confidence is excellent, we can survive poor similarity (Pose Rotation)
+        dynamic_sim_thresh = base_sim - (max(0, max_confidence - 0.50) * 0.4)
+
+        # 3. Absolute minimum limits to prevent tracking background noise
+        dynamic_conf_thresh = max(0.15, dynamic_conf_thresh)
+        dynamic_sim_thresh = max(0.35, dynamic_sim_thresh)
+
+        # Final verification decision
+        is_target_confirmed = (max_confidence > dynamic_conf_thresh) and (similarity_score > dynamic_sim_thresh)
+
+        if is_target_confirmed:
             # FOCUS STATE: Target Confirmed
             self.state = visual_bbox
 
-            # Snap the search window back to high-efficiency baseline (e.g., 4.0)
+            # Snap the search window back to high-efficiency baseline
             self.current_search_factor = self.base_search_factor
 
-            # Update memory to account for drone rotation/scaling (Safety Check 3: EMA uses detached tensor)
-            self.target_memory = ((1.0 - self.memory_lr) * self.target_memory) + \
-                                 (self.memory_lr * current_target_feat.clone().detach())
+            # Dynamic Memory Learning Rate (NEW)
+            # Learn faster if we are confident, learn slower if we are borderline
+            current_lr = self.memory_lr if similarity_score > 0.60 else (self.memory_lr / 2.0)
+
+            # Update memory to account for drone rotation/scaling
+            self.target_memory = ((1.0 - current_lr) * self.target_memory) + \
+                                 (current_lr * current_target_feat.clone().detach())
         else:
             # PANIC STATE: Out-Of-View (OOV) OR Distractor Detected
-            # Do NOT update self.state. Freeze the box at the last known location.
+            # Freeze the box at the last known location.
 
-            # Dynamically multiply the search factor to cast a massive net in the next frame
+            # Multiply search factor to cast a massive net in the next frame
             if self.current_search_factor < 16.0:
                 self.current_search_factor *= 1.5
 
