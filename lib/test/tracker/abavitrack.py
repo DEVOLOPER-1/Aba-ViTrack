@@ -131,6 +131,10 @@ class AbaViTrack(BaseTracker):
         self.similarity_threshold = 0.55  # If similarity drops below this, it's a distractor
         self.memory_lr = 0.1              # Moving average update rate to handle target rotation/scaling
 
+        # --- DYNAMIC SEARCH EXPANSION (NEW) ---
+        self.base_search_factor = params.search_factor
+        self.current_search_factor = self.base_search_factor
+
     def initialize(self, image, info: dict):
         # forward the template once
         z_patch_arr, resize_factor, z_amask_arr = sample_target(image, info['init_bbox'], self.params.template_factor,
@@ -150,8 +154,9 @@ class AbaViTrack(BaseTracker):
         self.state = info['init_bbox']
         self.frame_id = 0
 
-        # --- RESET FEATURE MEMORY (NEW) ---
+        # --- RESET FEATURE MEMORY & SEARCH FACTOR (NEW) ---
         self.target_memory = None
+        self.current_search_factor = self.base_search_factor
 
         # --- INITIALIZE KALMAN FILTER ---
         init_cx = self.state[0] + 0.5 * self.state[2]
@@ -174,7 +179,7 @@ class AbaViTrack(BaseTracker):
         # self.state is already utilizing the Kalman prediction to advance the search window.
         kf_pred_cx, kf_pred_cy = self.kf.predict()
 
-        x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.params.search_factor,
+        x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.current_search_factor,
                                                                 output_sz=self.params.search_size)  # (x1, y1, w, h)
         search = self.preprocessor.process(x_patch_arr, x_amask_arr)
 
@@ -231,6 +236,9 @@ class AbaViTrack(BaseTracker):
             self.state = visual_bbox
             self.last_w, self.last_h = visual_bbox[2], visual_bbox[3]
 
+            # SNAP BACK TO HIGH EFFICIENCY
+            self.current_search_factor = self.base_search_factor
+
             # Update the Feature Memory using exponential moving average
             self.target_memory = ((1.0 - self.memory_lr) * self.target_memory) + \
                                  (self.memory_lr * current_target_feat.clone().detach())
@@ -246,6 +254,11 @@ class AbaViTrack(BaseTracker):
             kf_y1 = kf_pred_cy - (0.5 * self.last_h)
 
             self.state = clip_box([kf_x1, kf_y1, self.last_w, self.last_h], H, W, margin=10)
+
+            # TRIGGER GLOBAL SEARCH EXPANSION
+            # Multiply search factor to cast a wider net in the next frame
+            if self.current_search_factor < 16.0:
+                self.current_search_factor *= 2.0
 
         # for debug
         # self.debug = True  # <--- FORCE THE DEBUG BLOCK TO RUN
