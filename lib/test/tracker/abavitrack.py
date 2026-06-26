@@ -1,5 +1,4 @@
 import math
-import numpy as np
 from lib.models.abavitrack import build_abavitrack
 from lib.test.tracker.basetracker import BaseTracker
 import torch
@@ -17,61 +16,6 @@ from lib.utils.box_ops import clip_box
 from lib.utils.ce_utils import generate_mask_cond
 
 
-class CAKalmanFilter:
-    """
-    Constant Acceleration (CA) Kalman Filter for lightweight kinematic trajectory prediction.
-    State Vector: [cx, cy, vx, vy, ax, ay]
-    """
-
-    def __init__(self, init_cx, init_cy):
-        self.dt = 1.0  # Time step (1 frame)
-
-        # Initial State: [cx, cy, vx, vy, ax, ay]
-        self.x = np.array([init_cx, init_cy, 0, 0, 0, 0], dtype=np.float32).reshape(6, 1)
-
-        # State Transition Matrix (Constant Acceleration Kinematics)
-        self.F = np.array([
-            [1, 0, self.dt, 0, 0.5 * self.dt ** 2, 0],
-            [0, 1, 0, self.dt, 0, 0.5 * self.dt ** 2],
-            [0, 0, 1, 0, self.dt, 0],
-            [0, 0, 0, 1, 0, self.dt],
-            [0, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 1]
-        ], dtype=np.float32)
-
-        # Measurement Matrix (We only measure position cx, cy)
-        self.H = np.array([
-            [1, 0, 0, 0, 0, 0],
-            [0, 1, 0, 0, 0, 0]
-        ], dtype=np.float32)
-
-        # State Covariance Matrix (Uncertainty)
-        self.P = np.eye(6, dtype=np.float32) * 10.0
-
-        # Process Noise Covariance (How much we trust the math model)
-        self.Q = np.eye(6, dtype=np.float32) * 0.01
-
-        # Measurement Noise Covariance (How much we trust the ViT visual output)
-        self.R = np.eye(2, dtype=np.float32) * 10.0
-
-    def predict(self):
-        # Predict the next state
-        self.x = np.dot(self.F, self.x)
-        self.P = np.dot(self.F, np.dot(self.P, self.F.T)) + self.Q
-        return float(self.x[0, 0]), float(self.x[1, 0])
-
-    def update(self, meas_cx, meas_cy):
-        # Update the state based on valid visual measurements
-        z = np.array([meas_cx, meas_cy]).reshape(2, 1)
-
-        S = np.dot(self.H, np.dot(self.P, self.H.T)) + self.R
-        K = np.dot(self.P, np.dot(self.H.T, np.linalg.inv(S)))  # Kalman Gain
-
-        y = z - np.dot(self.H, self.x)  # Measurement residual
-        self.x = self.x + np.dot(K, y)
-
-        I = np.eye(self.H.shape[1])
-        self.P = np.dot((I - np.dot(K, self.H)), self.P)
 
 class AbaViTrack(BaseTracker):
     def __init__(self, params, dataset_name):
@@ -122,16 +66,13 @@ class AbaViTrack(BaseTracker):
         self.save_all_boxes = params.save_all_boxes
         self.z_dict1 = {}
 
-        # --- KALMAN FILTER CONSTANTS ---
-        # If confidence drops below this, we trust the Kalman prediction instead of the visual model
-        self.confidence_threshold = 0.35
-
-        # --- SIMILARITY LAYER CONSTANTS (NEW) ---
+        # --- SIMILARITY & EXPANSION CONSTANTS ---
         self.target_memory = None
-        self.similarity_threshold = 0.55  # If similarity drops below this, it's a distractor
-        self.memory_lr = 0.1              # Moving average update rate to handle target rotation/scaling
+        self.confidence_threshold = 0.35
+        self.similarity_threshold = 0.50
+        self.memory_lr = 0.1
 
-        # --- DYNAMIC SEARCH EXPANSION (NEW) ---
+        # Safely store the highly-efficient baseline search factor
         self.base_search_factor = params.search_factor
         self.current_search_factor = self.base_search_factor
 
@@ -154,16 +95,9 @@ class AbaViTrack(BaseTracker):
         self.state = info['init_bbox']
         self.frame_id = 0
 
-        # --- RESET FEATURE MEMORY & SEARCH FACTOR (NEW) ---
+        # Reset memory and expansion on a new video sequence
         self.target_memory = None
         self.current_search_factor = self.base_search_factor
-
-        # --- INITIALIZE KALMAN FILTER ---
-        init_cx = self.state[0] + 0.5 * self.state[2]
-        init_cy = self.state[1] + 0.5 * self.state[3]
-        self.kf = CAKalmanFilter(init_cx, init_cy)
-        self.last_w = self.state[2]
-        self.last_h = self.state[3]
 
         if self.save_all_boxes:
             '''save all predicted boxes'''
@@ -174,13 +108,9 @@ class AbaViTrack(BaseTracker):
         H, W, _ = image.shape
         self.frame_id += 1
 
-        # --- 1. KF PREDICTION ---
-        # We predict the center BEFORE sampling. If the target was occluded in the previous frame,
-        # self.state is already utilizing the Kalman prediction to advance the search window.
-        kf_pred_cx, kf_pred_cy = self.kf.predict()
-
-        x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.current_search_factor,
-                                                                output_sz=self.params.search_size)  # (x1, y1, w, h)
+        # 1. USE DYNAMIC EXPANSION VARIABLE (Do not use params.search_factor)
+        x_patch_arr, resize_factor, x_amask_arr = sample_target(
+            image, self.state, self.current_search_factor, output_sz=self.params.search_size)
         search = self.preprocessor.process(x_patch_arr, x_amask_arr)
 
         with torch.no_grad():
@@ -203,18 +133,17 @@ class AbaViTrack(BaseTracker):
         # Extract highest confidence from the visual score map
         max_confidence = pred_score_map.max().item()
 
-        # --- FEATURE SIMILARITY EXTRACTION (NEW) ---
-        opt_feat = out_dict['opt_feat']  # Shape: (1, C, 16, 16)
+        # 2. DATA-INDEPENDENT FEATURE EXTRACTION
+        opt_feat = out_dict['opt_feat']  # Shape: (1, C, H_map, W_map)
+        _, _, H_map, W_map = pred_score_map.shape  # Dynamically grab shape
 
-        # Find the spatial (y, x) index of the peak confidence
         max_idx = pred_score_map.view(-1).argmax().item()
-        peak_y = max_idx // self.feat_sz
-        peak_x = max_idx % self.feat_sz
+        peak_y = max_idx // W_map
+        peak_x = max_idx % W_map
 
-        # Extract the vector at the predicted object's center
-        current_target_feat = opt_feat[0, :, peak_y, peak_x]  # Shape: (C,)
+        current_target_feat = opt_feat[0, :, peak_y, peak_x]
 
-        # Calculate Cosine Similarity
+        # 3. COSINE SIMILARITY
         if self.target_memory is None:
             self.target_memory = current_target_feat.clone().detach()
             similarity_score = 1.0
@@ -229,36 +158,25 @@ class AbaViTrack(BaseTracker):
             dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
         visual_bbox = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-        # --- 2. OCCLUSION / DISTRACTOR RECOVERY LOGIC (UPDATED) ---
-        # Trigger visual tracking ONLY if confidence is high AND feature similarity matches
+        # 4. THE SYNERGY LOGIC (NO KALMAN)
         if max_confidence > self.confidence_threshold and similarity_score > self.similarity_threshold:
-            # The ViT clearly sees the true target.
+            # TARGET CONFIRMED
+            # Update the bounding box state
             self.state = visual_bbox
-            self.last_w, self.last_h = visual_bbox[2], visual_bbox[3]
 
-            # SNAP BACK TO HIGH EFFICIENCY
+            # Snap the search window back to high-efficiency baseline
             self.current_search_factor = self.base_search_factor
 
-            # Update the Feature Memory using exponential moving average
+            # Update memory to account for rotations/scale changes
             self.target_memory = ((1.0 - self.memory_lr) * self.target_memory) + \
                                  (self.memory_lr * current_target_feat.clone().detach())
-
-            # Update the Kalman Filter with the new real measurement
-            vis_cx = visual_bbox[0] + 0.5 * visual_bbox[2]
-            vis_cy = visual_bbox[1] + 0.5 * visual_bbox[3]
-            self.kf.update(vis_cx, vis_cy)
         else:
-            # OCCLUSION OR DISTRACTOR DETECTED!
-            # Ignore the ViT's blind guess and use the Kalman kinematic prediction.
-            kf_x1 = kf_pred_cx - (0.5 * self.last_w)
-            kf_y1 = kf_pred_cy - (0.5 * self.last_h)
+            # TARGET LOST / DISTRACTOR DETECTED
+            # We DO NOT update self.state! (It stays frozen at the last known location)
 
-            self.state = clip_box([kf_x1, kf_y1, self.last_w, self.last_h], H, W, margin=10)
-
-            # TRIGGER GLOBAL SEARCH EXPANSION
             # Multiply search factor to cast a wider net in the next frame
             if self.current_search_factor < 16.0:
-                self.current_search_factor *= 2.0
+                self.current_search_factor *= 1.5
 
         # for debug
         # self.debug = True  # <--- FORCE THE DEBUG BLOCK TO RUN
